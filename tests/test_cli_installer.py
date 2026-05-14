@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
-import sys
 from pathlib import Path
-
-import pytest
 
 CLI_PATH = Path(__file__).resolve().parents[1] / "yantrikdb" / "cli.py"
 
@@ -19,11 +16,7 @@ def _load_cli():
     return module
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="Windows pathlib symlink_to requires admin/developer-mode; --copy is the documented path on Windows.",
-)
-def test_install_defaults_to_user_plugin_symlink(tmp_path, capsys):
+def test_install_defaults_to_user_plugin_shim(tmp_path, capsys):
     cli = _load_cli()
     hermes_home = tmp_path / "home"
 
@@ -31,10 +24,14 @@ def test_install_defaults_to_user_plugin_symlink(tmp_path, capsys):
 
     assert rc == 0
     target = hermes_home / "plugins" / "yantrikdb"
-    assert target.is_symlink()
-    assert target.resolve() == CLI_PATH.parent.resolve()
+    assert target.is_dir()
+    assert not target.is_symlink()
+    init_text = (target / "__init__.py").read_text(encoding="utf-8")
+    assert "from yantrikdb_hermes_plugin import YantrikDBMemoryProvider" in init_text
+    assert "register_memory_provider(YantrikDBMemoryProvider())" in init_text
+    assert (target / "plugin.yaml").exists()
     out = capsys.readouterr().out
-    assert "linked yantrikdb plugin into" in out
+    assert "registered yantrikdb plugin into" in out
     assert "hermes config set memory.provider yantrikdb" in out
 
 
